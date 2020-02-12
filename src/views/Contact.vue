@@ -1,10 +1,10 @@
 <template>
-  <div class="about">
-    <h1>This is an about page</h1>
+  <div class="contact">
+    <h1>This is the contact page</h1>
   </div>
 </template>
 <style scoped>
-.about {
+.contact {
   height: 100vh;
   display: grid;
   place-items: center;
