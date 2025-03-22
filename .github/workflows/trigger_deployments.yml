@@ -1,11 +1,13 @@
-name: Deploy Platform app to Staging
+name: Deploy Platform app
 
 env:
   AWS_REGION: eu-central-1
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   AWS_ECR_USER_ACCESS_KEY_ID: AKIAZGDDXTFAVULY6N5D
   AWS_ECR_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_ECR_USER }}
-  AWS_S3_BUCKET: 'platform-s3.staging.arcual.app'
+  AWS_STAGING_S3_BUCKET: 'platform-s3.staging.arcual.app'
+  AWS_DEMO_S3_BUCKET: 'platform-s3.demo.arcual.app'
+  AWS_PRODUCTION_S3_BUCKET: 'platform-s3.arcual.app'
   SOURCE_DIR: 'dist'
   ENV: 'staging'
   NODE_OPTIONS: '--max_old_space_size=8192'
@@ -96,7 +98,7 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Deploy to S3
-        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_S3_BUCKET }}
+        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_STAGING_S3_BUCKET }}
 
       - name: call-notify-success-workflow
         uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
@@ -141,7 +143,7 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Deploy to S3
-        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_S3_BUCKET }}
+        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_DEMO_S3_BUCKET }}
 
       - name: call-notify-success-workflow
         uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
@@ -186,7 +188,7 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Deploy to S3
-        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_S3_BUCKET }}
+        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_PRODUCTION_S3_BUCKET }}
 
       - name: call-notify-success-workflow
         uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
