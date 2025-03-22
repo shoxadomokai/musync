@@ -1,46 +1,201 @@
-name: Trigger Deployments
+name: Deploy Platform app to Staging
+
+env:
+  AWS_REGION: eu-central-1
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  AWS_ECR_USER_ACCESS_KEY_ID: AKIAZGDDXTFAVULY6N5D
+  AWS_ECR_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_ECR_USER }}
+  AWS_S3_BUCKET: 'platform-s3.staging.arcual.app'
+  SOURCE_DIR: 'dist'
+  ENV: 'staging'
+  NODE_OPTIONS: '--max_old_space_size=8192'
 
 on:
   workflow_dispatch:
+    tags:
+      - 'v*.*.*'
     inputs:
-      deploy_staging:
+      staging:
         description: 'Deploy to Staging'
         type: boolean
         default: false
-      deploy_demo:
+      demo:
         description: 'Deploy to Demo'
         type: boolean
         default: false
-      deploy_prod:
+      production:
         description: 'Deploy to Production'
         type: boolean
         default: false
 
 jobs:
-  trigger-workflows:
+  test:
+    name: Build & test application
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Trigger selected workflows
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Artifactory
+        shell: bash
         run: |
-          REPO="${{ github.repository }}"
-          TAG="${{ github }}"
+          curl -ugithub-ci-npm:${{ secrets.JFROG_NPM_ACCESS_TOKEN }} https://arcualdevelopment.jfrog.io/artifactory/api/npm/auth | sed "s/_auth/\/\/arcualdevelopment.jfrog.io\/artifactory\/api\/npm\/arcual-app-npm\/\:_auth/g" > .npmrc
+          npm config set @arcual:registry https://arcualdevelopment.jfrog.io/artifactory/api/npm/arcual-app-npm/
 
-          if [ "${{ inputs.deploy_staging }}" == "true" ]; then
-            echo "Triggering deploy_staging..."
-            gh workflow run deploy_staging.yml --repo "$REPO" -f tag="$TAG"
-          fi
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: '.node-version'
 
-          if [ "${{ inputs.deploy_demo }}" == "true" ]; then
-            echo "Triggering deploy_demo..."
-            gh workflow run deploy_demo.yml --repo "$REPO" -f tag="$TAG"
-          fi
+      - name: Cache node modules
+        id: cache-node-modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('package.json') }}
 
-          if [ "${{ inputs.deploy_production }}" == "true" ]; then
-            echo "Triggering deploy_prod..."
-            gh workflow run deploy_prod.yml --repo "$REPO" -f tag="$TAG"
-          fi
+      - name: install Node Dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Run unit test and collect coverage
+        run: npm run test
+
+  deploy_staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.staging == true }}
+
+    steps:
+      - name: Build
+        run: npm run build:staging
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.AWS_ECR_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Configure AWS Credentials for deployment
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CI }}
+          aws-region: eu-central-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_STAGING_CI }}
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+
+      - name: Deploy to S3
+        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_S3_BUCKET }}
+
+      - name: call-notify-success-workflow
+        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
+        with:
+          environment: 'STAGING'
+          application_name: 'PLATFORM-APP'
+
+      - name: call-notify-success-workflow
+        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
+        with:
+          environment: 'STAGING'
+          application_name: 'PLATFORM-APP'
+
+  deploy_demo:
+    name: Deploy to Demo
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.demo == true }}
+
+    steps:
+      - name: Build
+        run: npm run build:demo
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.AWS_ECR_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Configure AWS Credentials for deployment
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CI }}
+          aws-region: eu-central-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEMO_CI }}
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+
+      - name: Deploy to S3
+        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_S3_BUCKET }}
+
+      - name: call-notify-success-workflow
+        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
+        with:
+          environment: 'DEMO'
+          application_name: 'PLATFORM-APP'
+
+      - name: call-notify-success-workflow
+        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
+        with:
+          environment: 'DEMO'
+          application_name: 'PLATFORM-APP'
+
+  deploy_production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.production == true }}
+
+    steps:
+      - name: Build
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.AWS_ECR_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Configure AWS Credentials for deployment
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CI }}
+          aws-region: eu-central-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_PROD_CI }}
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+
+      - name: Deploy to S3
+        run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_S3_BUCKET }}
+
+      - name: call-notify-success-workflow
+        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
+        with:
+          environment: 'PRODUCTION'
+          application_name: 'PLATFORM-APP'
+
+      - name: call-notify-success-workflow
+        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
+        with:
+          environment: 'PRODUCTION'
+          application_name: 'PLATFORM-APP'
