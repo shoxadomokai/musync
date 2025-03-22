@@ -2,8 +2,6 @@ name: Trigger Deployments
 
 on:
   workflow_dispatch:
-    tags:
-      - 'v*.*.*'
     inputs:
       deploy_staging:
         description: 'Deploy to Staging'
