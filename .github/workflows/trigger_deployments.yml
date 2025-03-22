@@ -1,0 +1,48 @@
+name: Trigger Deployments
+
+on:
+  workflow_dispatch:
+    tags:
+      - 'v*.*.*'
+    inputs:
+      deploy_staging:
+        description: 'Deploy to Staging'
+        type: boolean
+        default: false
+      deploy_demo:
+        description: 'Deploy to Demo'
+        type: boolean
+        default: false
+      deploy_prod:
+        description: 'Deploy to Production'
+        type: boolean
+        default: false
+
+jobs:
+  trigger-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Trigger selected workflows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          TAG="${{ github }}"
+
+          if [ "${{ inputs.deploy_staging }}" == "true" ]; then
+            echo "Triggering deploy_staging..."
+            gh workflow run deploy_staging.yml --repo "$REPO" -f tag="$TAG"
+          fi
+
+          if [ "${{ inputs.deploy_demo }}" == "true" ]; then
+            echo "Triggering deploy_demo..."
+            gh workflow run deploy_demo.yml --repo "$REPO" -f tag="$TAG"
+          fi
+
+          if [ "${{ inputs.deploy_production }}" == "true" ]; then
+            echo "Triggering deploy_prod..."
+            gh workflow run deploy_prod.yml --repo "$REPO" -f tag="$TAG"
+          fi
