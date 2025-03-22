@@ -67,6 +67,7 @@ jobs:
       - name: Run unit test and collect coverage
         run: npm run test
 
+  # Deploy to Staging Start
   deploy_staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
@@ -100,18 +101,24 @@ jobs:
       - name: Deploy to S3
         run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_STAGING_S3_BUCKET }}
 
-      - name: call-notify-success-workflow
-        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
-        with:
-          environment: 'STAGING'
-          application_name: 'PLATFORM-APP'
+  call-notify-success-workflow-staging:
+    uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
+    secrets: inherit
+    needs: [deploy_staging]
+    with:
+      environment: 'STAGING'
+      application_name: 'PLATFORM-APP'
 
-      - name: call-notify-success-workflow
-        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
-        with:
-          environment: 'STAGING'
-          application_name: 'PLATFORM-APP'
+  call-notify-failure-workflow-staging:
+    uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
+    secrets: inherit
+    needs: [deploy_staging]
+    with:
+      environment: 'STAGING'
+      application_name: 'PLATFORM-APP'
+  # Deploy to Staging End
 
+  # Deploy to Demo Start
   deploy_demo:
     name: Deploy to Demo
     runs-on: ubuntu-latest
@@ -145,18 +152,24 @@ jobs:
       - name: Deploy to S3
         run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_DEMO_S3_BUCKET }}
 
-      - name: call-notify-success-workflow
-        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
-        with:
-          environment: 'DEMO'
-          application_name: 'PLATFORM-APP'
+  call-notify-success-workflow-demo:
+    uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
+    secrets: inherit
+    needs: [deploy_demo]
+    with:
+      environment: 'DEMO'
+      application_name: 'PLATFORM-APP'
 
-      - name: call-notify-success-workflow
-        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
-        with:
-          environment: 'DEMO'
-          application_name: 'PLATFORM-APP'
+  call-notify-failure-workflow-demo:
+    uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
+    secrets: inherit
+    needs: [deploy_demo]
+    with:
+      environment: 'DEMO'
+      application_name: 'PLATFORM-APP'
+  # Deploy to Demo End
 
+  # Deploy to Production Start
   deploy_production:
     name: Deploy to Production
     runs-on: ubuntu-latest
@@ -190,14 +203,18 @@ jobs:
       - name: Deploy to S3
         run: aws s3 sync ${{ env.SOURCE_DIR }} s3://${{ env.AWS_PRODUCTION_S3_BUCKET }}
 
-      - name: call-notify-success-workflow
-        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
-        with:
-          environment: 'PRODUCTION'
-          application_name: 'PLATFORM-APP'
+  call-notify-success-workflow-production:
+    uses: venture-artbeat/reusable-workflows/.github/workflows/notify-success-with-release.yml@main
+    secrets: inherit
+    needs: [deploy_production]
+    with:
+      environment: 'PRODUCTION'
+      application_name: 'PLATFORM-APP'
 
-      - name: call-notify-success-workflow
-        uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
-        with:
-          environment: 'PRODUCTION'
-          application_name: 'PLATFORM-APP'
+  call-notify-failure-workflow-production:
+    uses: venture-artbeat/reusable-workflows/.github/workflows/notify-failure.yml@main
+    secrets: inherit
+    needs: [deploy_production]
+    with:
+      environment: 'PRODUCTION'
+      application_name: 'PLATFORM-APP'
